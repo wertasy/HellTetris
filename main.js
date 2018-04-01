@@ -14,12 +14,14 @@ game.States.load = function() {
         var preloadSprite = game.add.sprite(game.width / 2 - 110, game.height / 2, 'loading');
         game.load.setPreloadSprite(preloadSprite);
 
-        game.load.image('container', 'assets/container.png');
-        game.load.image('tetrisL', 'assets/L.png');
-        game.load.image('tetrisT', 'assets/T.png');
-        game.load.image('tetrisZ', 'assets/Z.png');
-        game.load.image('tetrisO', 'assets/O.png');
-        game.load.image('tetrisI', 'assets/I.png');
+        game.load.image('bottom', 'assets/container.png');
+        game.load.image('wall', 'assets/container.png');
+        game.load.image('skin', 'assets/skin.png');
+        game.load.image('lBox', 'assets/L.png');
+        game.load.image('tBox', 'assets/T.png');
+        game.load.image('zBox', 'assets/Z.png');
+        game.load.image('oBox', 'assets/O.png');
+        game.load.image('iBox', 'assets/I.png');
         game.load.physics('physicsData', 'assets/sprites.json');
     };
     this.create = function() {
@@ -27,61 +29,154 @@ game.States.load = function() {
     };
 }
 game.States.play = function() {
-    var container;
-    var falltetris;
-    var hasStart = true;
-    this.preload = function() {};
+    var player, playerPoint = 1;
+    var skin;
+    var gameOverText;
+    var overGroup, gameOver = false;
+    var iBox, lBox, oBox, tBox, xBox;
+    var x1, y1;
     this.create = function() {
-        game.physics.startSystem(Phaser.Physics.BOX2D);
-        game.physics.box2d.setBoundsToWorld();
-        game.physics.box2d.restidution = 0.15;
-        game.physics.box2d.friction = 0;
-        game.physics.box2d.gravity.y = 20;
+        game.physics.startSystem(Phaser.Physics.P2JS);
+        game.physics.p2.restitution = 0;
+        game.physics.p2.bounce = 0;
+        game.physics.p2.gravity.y = 30;
 
-        var containerVertices = [58, 0, 58, 378, 60, 394, 65, 408, 72, 420, 83, 434, 96, 446, 110, 455, 123, 462, 138, 468, 154, 472, 168, 474, 180, 475,
-            192, 474, 206, 472, 222, 468, 237, 462, 250, 455, 264, 446, 277, 434, 288, 420, 295, 408, 300, 394,
-            304, 378, 304, 0
-        ];
-        container = game.add.sprite(0, 0, 'container');
-        var containerBody = new Phaser.Physics.Box2D.Body(this.game, null, 0, 0, 0);
-        containerBody.setChain(containerVertices);
+        wall = game.add.sprite(game.world.width / 2, game.world.height / 2, 'wall');
+        game.physics.p2.enable(wall, false);
+        wall.body.static = true;
+        wall.body.clearShapes();
+        wall.body.loadPolygon('physicsData', 'wall');
 
-        falltetris = game.add.sprite(game.width / 2, 200, 'tetrisT');
-        game.physics.box2d.enable(falltetris);
-        falltetris.body.clearFixtures();
-        falltetris.body.loadPolygon('physicsData', 'T', falltetris);
+        bottom = game.add.sprite(game.world.width / 2, game.world.height / 2, 'bottom');
+        game.physics.p2.enable(bottom, false);
+        bottom.body.static = true;
+        bottom.body.clearShapes();
+        bottom.body.loadPolygon('physicsData', 'bottom');
 
+        skin = game.add.sprite(0, 0, 'skin');
+
+        //随机产生box
+        createBox = function() {
+            var random = Math.floor(Math.random() * 5);
+            switch (random) {
+                case 0:
+                    player = game.add.sprite(game.world.width / 2, 70, 'tBox');
+                    game.physics.p2.enable(player, false);
+                    player.body.clearShapes();
+                    player.body.loadPolygon('physicsData', 'T');
+                    break;
+                case 1:
+                    player = game.add.sprite(game.world.width / 2, 70, 'lBox');
+                    game.physics.p2.enable(player, false);
+                    player.body.clearShapes();
+                    player.body.loadPolygon('physicsData', 'L');
+                    break;
+                case 2:
+                    player = game.add.sprite(game.world.width / 2, 70, 'oBox');
+                    game.physics.p2.enable(player, false);
+                    player.body.clearShapes();
+                    player.body.loadPolygon('physicsData', 'O');
+                    break;
+                case 3:
+                    player = game.add.sprite(game.world.width / 2, 70, 'zBox');
+                    game.physics.p2.enable(player, false);
+                    player.body.clearShapes();
+                    player.body.loadPolygon('physicsData', 'Z');
+                    break;
+                case 4:
+                    player = game.add.sprite(game.world.width / 2, 90, 'iBox');
+                    game.physics.p2.enable(player, false);
+                    player.body.clearShapes();
+                    player.body.loadPolygon('physicsData', 'I');
+                    break;
+            }
+            player.body.damping = 0.6;
+            player.body.onBeginContact.addOnce(blockHit, this);
+        };
+        blockHit = function(body, bodyB, shapeA, shapeB, equation) {
+            console.log(player.top);
+            if (player.top < 30) {
+                gameOver = true;
+                game.input.onDown.add(
+                    function() {
+                        game.state.start('play');
+                        gameOver = false;
+                        playerPoint = 0;
+                        gameOverText = null;
+                    }
+                );
+            }
+            if (!gameOver) {
+                if (body) {
+                    if (body.sprite.key != 'wall') {
+                        playerPoint++;
+                        createBox();
+                    } else {
+                        player.body.onBeginContact.removeAll();
+                        player.body.onBeginContact.addOnce(blockHit, this);
+                    }
+                }
+            }
+        };
+
+        createBox();
         cursors = game.input.keyboard.createCursorKeys();
-        game.input.onDown.add(this.move, this);
-    };
-    this.move = function() {
-        if (game.input.x < game.width / 2) {
-            falltetris.body.velocity.x = -50;
-        } else {
-            falltetris.body.velocity.x = 50;
+
+        keyDown = function() {
+            player.body.angle = player.body.angle + 90;
         }
+
+
+        game.input.onTap.add(function(pointer, doubleTap) {
+            if (doubleTap) {
+                player.body.angle = player.body.angle + 90;
+            } else {
+                console.log(pointer);
+                if (pointer.x < game.world.width / 2) {
+                    player.body.velocity.x -= 30;
+                } else if (pointer.x > game.world.width / 2) {
+                    player.body.velocity.x += 30;
+                }
+            }
+        });
+
+        cursors.up.onDown.add(keyDown, this);
     };
+
+
     this.update = function() {
-        falltetris.body.velocity.x = 0;
+        //player.body.velocity.x = 0;
 
         if (cursors.left.isDown) {
-            falltetris.body.velocity.x = -50;
+            player.body.velocity.x -= 2;
         } else if (cursors.right.isDown) {
-            falltetris.body.velocity.x = 50;
-        }
-
-        if (cursors.up.isDown) {
-            falltetris.body.moveUp(200);
+            player.body.velocity.x += 2;
         } else if (cursors.down.isDown) {
-            falltetris.body.moveDown(200);
+            player.body.y += 4;
         }
-
+        if (gameOver) {
+            createGameOverText();
+        }
     };
-    this.render = function() {
-        game.debug.box2dWorld();
-    }
-}
+    this.render = function() {}
 
+    function createGameOverText() {
+        if (gameOverText == null) {
+            if (player.body.y == 50) {
+                player.kill();
+                point.text = playerPoint;
+            }
+            gameOverText = game.add.text(game.width / 2, game.height / 2, '游戏结束 !!\n得分:' + playerPoint + '\n点击屏幕重新开始');
+            gameOverText.anchor.setTo(0.5);
+            gameOverText.font = 'Arial Black';
+            gameOverText.fontWeight = 'bold';
+            gameOverText.fill = 'black';
+            gameOverText.fontSize = 40;
+            gameOverText.setShadow(5, 5, 'rgba(0, 0, 0, 0.5)', 5);
+
+        }
+    }
+};
 game.state.add('boot', game.States.boot);
 game.state.add('load', game.States.load);
 game.state.add('play', game.States.play);
